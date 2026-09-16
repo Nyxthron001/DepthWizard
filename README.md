@@ -1,186 +1,214 @@
-# 🛰️ DepthWizard — 3D Elevation Terrain Pipeline
+# DepthWizard — Single-View Height Estimation & 3D Flythrough
 
-> **Smart India Hackathon 2026 — Problem Statement ID 26175**  
-> **Sponsoring Organisation:** Indian Space Research Organisation (ISRO)  
-> **Theme:** Disaster Management | **Category:** Software  
+**Smart India Hackathon 2026 — Problem Statement ID 26175 (ISRO / Disaster Management)**
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.141%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![React 19](https://img.shields.io/badge/React-19.2-61dafb.svg)](https://react.dev/)
-[![Three.js](https://img.shields.io/badge/Three.js-0.185-black.svg)](https://threejs.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.14-ee4c2c.svg)](https://pytorch.org/)
+DepthWizard is an AI-driven elevation reconstruction and visualization pipeline. It estimates high-resolution Digital Surface Models (DSMs) directly from a **single optical RGB image** (satellite or aerial/drone) and turns them into an interactive, textured 3D terrain for first-person flythrough and rapid disaster assessment.
 
 ---
 
-## 📌 Overview
+## The Problem
 
-**DepthWizard** is an end-to-end AI & 3D rendering pipeline that converts a **single optical RGB remote-sensing satellite or aerial image** into a high-precision elevation map (Digital Surface Model / DSM), then renders it as an interactive, navigable 3D terrain flythrough with real-time telemetry.
+High-resolution Digital Elevation Models (DEMs/DSMs) are essential for disaster response—including flood inundation modeling, landslide hazard zoning, and post-event structural damage assessment.
 
-Built for disaster management scenarios (floods, landslides, terrain inspection), DepthWizard bridges the domain gap between ground-level monocular depth models and nadir satellite imagery.
+However, traditional photogrammetry and remote sensing techniques carry heavy operational tradeoffs:
+- **Stereo Photogrammetry**: Requires overlapping multi-angle passes, demanding coordinated satellite tasking or multi-camera aerial rigs.
+- **LiDAR**: Exceptional accuracy, but exorbitantly expensive and slow to mobilize over broad disaster zones.
+- **InSAR (Interferometric Synthetic Aperture Radar)**: Complex baseline geometry, phase unwrapping artifacts, and latency in processing.
 
----
-
-## ✨ Key Features
-
-- **🚀 Deep Learning Depth Inference**: Powered by Depth Anything V2 fine-tuned on the GAMUS satellite dataset.
-- **🧊 Interactive 3D Terrain Viewer**: Built with Three.js & React Three Fiber. Features dynamic displacement scaling (0.5x–10x), directional lighting, and background fog.
-- **🛰️ Real-Time Telemetry HUD**: Displays real-time X, Y, and Elevation (Z) coordinates as you hover your cursor over the 3D terrain.
-- **🔀 Dual Input Support**:
-  - **Branch A (Non-Georeferenced)**: Accepts plain PNG/JPG images $\rightarrow$ generates a normalized 0–1 Relative DSM ($rDSM$).
-  - **Branch B (Georeferenced)**: Accepts GeoTIFF files $\rightarrow$ regresses relative depth to absolute metric height (meters) using SRTM 30m DEM data.
-- **💾 Multi-Format Exports**:
-  - **16-Bit GIS Heightmap (`.png`)**: High-precision grayscale heightmap for QGIS, ArcGIS, and GDAL workflows.
-  - **3D Mesh (`.obj`)**: Standard Wavefront 3D OBJ mesh file ready for Blender, Unity, or Unreal Engine.
-- **🛡️ Robust Model Fallback**: Automatically loads fine-tuned weights (`depth_wizard_model.pt`) if present; falls back to Hugging Face base pretrained models gracefully if missing.
+**DepthWizard explores single-view height estimation** as a rapid-deployment alternative: extracting reliable topographic and structural elevation from a single monocular optical frame.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
-                               ┌─────────────────────────┐
-                               │   Input RGB Satellite   │
-                               │   Image (PNG/JPG/GeoTIFF)│
-                               └────────────┬────────────┘
-                                            │
-                                            ▼
-                               ┌─────────────────────────┐
-                               │   FastAPI Ingestion     │
-                               └────────────┬────────────┘
-                                            │
-                                            ▼
-                               ┌─────────────────────────┐
-                               │   DepthEngine (PyTorch) │
-                               │  Depth Anything V2 HF   │
-                               └────────────┬────────────┘
-                                            │
-                                            ▼
-                               ┌─────────────────────────┐
-                               │    ScaleCalibrator      │
-                               │ (Linear Regression/SRTM)│
-                               └────────────┬────────────┘
-                                            │
-                     ┌──────────────────────┴──────────────────────┐
-                     ▼                                             ▼
-       ┌───────────────────────────┐                 ┌───────────────────────────┐
-       │   Export Generators       │                 │   Interactive 3D Viewer   │
-       │  • 16-Bit PNG Heightmap   │                 │  • Three.js Mesh Render   │
-       │  • Wavefront 3D OBJ Mesh  │                 │  • Real-Time Telemetry HUD│
-       └───────────────────────────┘                 └───────────────────────────┘
+                    ┌───────────────────────────────────┐
+                    │   Input Image (Satellite/Aerial)   │
+                    └─────────────────┬─────────────────┘
+                                      │
+               ┌──────────────────────┴──────────────────────┐
+               ▼                                             ▼
+     [Mode A: Standard RGB]                       [Mode B: GeoTIFF]
+     (PNG / JPEG format)                          (Embedded CRS & Geotransform)
+               │                                             │
+               ▼                                             ▼
+    Tiling & Normalization                       Query SRTM 30m / Copernicus DEM
+               │                                             │
+               └──────────────────────┬──────────────────────┘
+                                      ▼
+             ┌─────────────────────────────────────────────────┐
+             │         Depth Anything V2 (Fine-tuned)          │
+             │           Monocular Depth Prediction            │
+             └────────────────────────┬────────────────────────┘
+                                      │ (Relative Depth Map)
+               ┌──────────────────────┴──────────────────────┐
+               ▼                                             ▼
+     [Relative Elevation]                         [Metric Calibration]
+   Normalized disparity [0, 1]                  Least-Squares Affine Alignment
+                                                Z_metric = s * d_rel + t
+                                                             │
+                                                             ▼
+                                                Absolute DSM (32-bit Float)
+                                                             │
+               ┌─────────────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          FastAPI Backend                                │
+│       - GeoTIFF / 16-Bit PNG Elevation Exporter                         │
+│       - Wavefront 3D OBJ Mesh Exporter                                  │
+│       - Heightmap & Texture Streaming (/process)                        │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│               React Three Fiber (Three.js) 3D Viewer                   │
+│  - Dynamic Vertex Displacement Heightmap                                │
+│  - Orthorectified RGB Texture Draping                                   │
+│  - Real-Time Telemetry HUD (X, Y, Elevation Readouts)                   │
+│  - Dynamic Height Scale Slider & Reset Controls                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 💻 Tech Stack
+## End-to-End Phased Approach
 
-- **Backend Framework**: Python 3.10+, FastAPI, Uvicorn
-- **ML / Computer Vision**: PyTorch, Transformers, OpenCV, Scikit-Learn, PIL
-- **Frontend Framework**: React 19, Vite
-- **3D Graphics Engine**: Three.js, `@react-three/fiber`, `@react-three/drei`
-- **Data & Model Hub**: Hugging Face Hub (GAMUS Dataset & Depth Anything V2)
+The pipeline is structured into six core phases, taking raw optical inputs through machine learning inference to interactive web-based 3D visualization.
+
+### Phase 1: Input Ingestion & Preprocessing
+The system supports two distinct ingestion workflows depending on metadata availability:
+- **Mode A: Non-Georeferenced Standard Imagery (PNG / JPG / TIFF)**
+  - Suited for commercial drone surveys, reconnaissance photos, or ad-hoc aerial captures.
+  - Image normalization, contrast enhancement, and automated tile-based tiling for large aerial scenes.
+- **Mode B: Georeferenced Satellite Imagery (GeoTIFF)**
+  - Extracts spatial bounding boxes, Coordinate Reference System (CRS, e.g., EPSG:4326, UTM projections), and Ground Sampling Distance (GSD) using `rasterio` and `pyproj`.
+  - Automatically queries and caches overlapping coarse reference DEMs (e.g., SRTM 30m or Copernicus DEM GLO-30) for metric scaling.
+
+### Phase 2: Monocular Depth Inference (Relative Elevation)
+- Employs **Depth Anything V2** (Vision Transformer backbone: ViT-B / ViT-L) fine-tuned on the **GAMUS** remote sensing dataset.
+- Standard depth models suffer from domain shift when applied to satellite imagery (they assume horizontal/egocentric viewpoints). Fine-tuning adapts the attention maps to:
+  - Nadir and high-oblique satellite view geometry.
+  - Sharp building facades, structural footprints, and roof boundaries.
+  - Variable terrain features (cliffs, ravines, rolling hills, and riverbanks).
+- Produces a dense, continuous relative disparity/depth map ($d_{rel}$).
+
+### Phase 3: Metric Calibration & Absolute Elevation Modeling
+- **Non-georeferenced images**: The relative depth is scaled to an intuitive normalized elevation range $[0, 1]$ or estimated based on user-configured height bounds.
+- **Georeferenced GeoTIFFs**:
+  - The coarse reference DEM (e.g., SRTM 30m) is resampled to match the spatial extents of the input image.
+  - Coarse elevation values ($Z_{ref}$) serve as anchor points.
+  - A robust least-squares affine fitting ($Z_{metric} = s \cdot d_{rel} + t$) determines the optimal global scale factor $s$ and vertical datum shift $t$.
+  - High-frequency micro-topography (buildings, trees, retaining walls) predicted by the neural backbone is merged onto the low-frequency regional terrain baseline from the reference DEM.
+
+### Phase 4: Backend API & Service Layer
+- Built with **FastAPI** to provide asynchronous, low-latency processing pipelines:
+  - `/process`: Accepts uploaded imagery, executes the inference & calibration pipeline, and returns generated artifacts.
+  - `/export/png16/{job_id}`: Exports high-precision **16-bit grayscale heightmaps** for GIS suites (QGIS, ArcGIS).
+  - `/export/obj/{job_id}`: Generates standard **Wavefront 3D OBJ mesh** files for Blender, Unity, or Unreal Engine.
+
+### Phase 5: 3D Terrain Generation & Texture Draping
+- Built on **Three.js** and **React Three Fiber**:
+  - **Heightfield Displacement**: A subdivided plane geometry dynamically displaces vertices along the Z-axis in a custom vertex shader, directly driven by the processed elevation map.
+  - **Texture Draping**: The original optical RGB image is draped as an albedo map over the displaced terrain mesh with matched UV coordinates.
+  - **Dynamic Hillshading & Relief**: Calculates surface normals on the fly to simulate directional sun lighting, accentuating slopes, crests, and topological variations.
+
+### Phase 6: First-Person 3D Flythrough & Disaster Analysis Tools
+- **Navigable 3D Orbit & Flythrough Camera**:
+  - Built with `@react-three/drei` controls allowing first-person flight and 360-degree inspection of target sites.
+- **Disaster Assessment Tooling**:
+  - **Real-Time Telemetry HUD**: Displays precise X, Y, and Z elevation data on cursor hover.
+  - **Dynamic Elevation Scaling**: Interactive slider (0.5x–10x) for accentuating terrain topography in real time.
 
 ---
 
-## 📁 Repository Structure
+## Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Deep Learning & Inference** | PyTorch, Depth Anything V2 (ViT), Hugging Face `transformers`, `timm` |
+| **Geospatial & Image Processing** | Rasterio, GDAL / PyOGRIO, Shapely, GeoPandas, PyProj, OpenCV, NumPy |
+| **Backend Service** | FastAPI, Uvicorn, Pydantic |
+| **Frontend & 3D Rendering** | React 19, Vite, Three.js, React Three Fiber (`@react-three/fiber`), `@react-three/drei` |
+
+---
+
+## Project Structure
 
 ```
 DepthWizard/
 ├── backend/
-│   ├── app/
-│   │   └── main.py              # FastAPI server endpoints (/process, /export/obj, /export/png16)
-│   ├── models/
-│   │   ├── depth_engine.py      # Monocular depth model wrapper & inference logic
-│   │   └── calibration.py       # Relative-to-metric scale recovery calibrator
-│   └── scripts/
-│       └── download_demo_data.py# Script to download sample GAMUS data
+│   ├── app/                 # FastAPI routes, schemas, and prediction pipelines
+│   ├── data/                # Sample imagery and DEM caching
+│   ├── models/              # Fine-tuned model checkpoints and weights
+│   ├── scripts/             # Data download & preprocessing utilities
+│   ├── tests/               # Unit and integration test suite
+│   └── requirements.txt     # Python backend dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── DepthWizardViewer.jsx # Main 3D Canvas, Orbit Controls & Telemetry HUD
-│   │   │   └── DepthWizardViewer.css # Mission-control dark mode styling
-│   │   └── App.jsx
-│   └── package.json
-├── notebooks/
-│   └── train_depth_wizard.ipynb # Colab notebook (v13) for cloud fine-tuning on GAMUS
-├── data/
-│   └── samples/                 # Sample satellite test images
-├── start.bat                    # 1-Click Windows launcher script
-└── requirements.txt             # Python backend dependencies
+│   │   ├── components/      # 3D Canvas, Orbit Controls, and Telemetry HUD
+│   │   ├── App.jsx          # Main application interface
+│   │   └── index.css        # Styling and responsive design
+│   ├── package.json         # React & Three.js dependencies
+│   └── vite.config.js       # Vite bundler configuration
+├── notebooks/               # Colab fine-tuning training notebook (v13)
+├── start.bat                # 1-Click Windows server launcher
+└── README.md
 ```
 
 ---
 
-## ⚡ Quick Start Guide
+## Getting Started
 
-### Option A: 1-Click Launch (Windows)
+### Prerequisites
+- Node.js (v18+) and npm
+- Python 3.10+ (CUDA-compatible GPU recommended for deep learning inference)
 
-Simply double-click **`start.bat`** in the project root directory. It will automatically launch both the FastAPI backend server and the Vite React frontend in separate terminal windows!
+### 🚀 1-Click Quick Start (Windows)
+Double click `start.bat` in the project root to automatically launch both the FastAPI backend and Vite frontend!
 
 ---
 
-### Option B: Manual Setup
+### 🛠️ Manual Setup
 
-#### 1. Clone the Repository
+#### 1. Backend Setup
+
 ```bash
-git clone https://github.com/Nyxthron001/DepthWizard.git
+# Navigate to project root
 cd DepthWizard
-```
 
-#### 2. Setup & Start Backend
-```bash
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Start FastAPI server on port 8000
+# Start backend server
 python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 
-#### 3. Setup & Start Frontend
+#### 2. Frontend Setup
+
 ```bash
-# Navigate to frontend folder
+# Navigate to frontend directory
 cd frontend
 
-# Install Node modules
+# Install Node dependencies
 npm install
 
-# Start Vite dev server on port 5173
+# Start development server
 npm run dev
 ```
 
-#### 4. Open in Browser
-Visit **`http://localhost:5173`** in your browser. Upload any aerial or satellite image (or select one from `data/samples/`) and click **"Generate 3D Terrain"**!
+Open `http://localhost:5173` in your browser to view the application.
 
 ---
 
-## 🔌 API Endpoints
+## Roadmap
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/` | API status check |
-| `POST` | `/process` | Upload RGB image $\rightarrow$ returns depth map URL, 3D mesh URL, and telemetry |
-| `GET` | `/export/png16/{job_id}` | Download 16-bit GIS elevation heightmap PNG |
-| `GET` | `/export/obj/{job_id}` | Download Wavefront 3D OBJ mesh file |
-| `GET` | `/results/{filename}` | Serve processed preview files |
-| `GET` | `/uploads/{filename}` | Serve raw uploaded source images |
-
----
-
-## 🧠 Model Weights & Cloud Training
-
-- **Default Mode**: The system automatically uses Hugging Face's `depth-anything/Depth-Anything-V2-Small-hf` base model if no custom weights are found.
-- **Custom Fine-Tuning**: Run `notebooks/train_depth_wizard.ipynb` on Google Colab / Kaggle GPU to fine-tune on the **earthflow/GAMUS** dataset. Save the output file as `depth_wizard_model.pt` in the project root to enable custom weights automatically.
-
----
-
-## 🏆 SIH 2026 Evaluation Criteria Alignment
-
-- **DSM Estimation Accuracy (50%)**: Domain adaptation via GAMUS dataset training and metric elevation scale recovery via linear regression against SRTM DEMs.
-- **Visualization & UX (50%)**: Seamless in-browser 3D flythrough, real-time coordinate inspection HUD, dynamic height scale slider, and multi-format export capabilities.
-
----
-
-## 📜 License & Acknowledgments
-
-- Problem Statement sponsored by **Indian Space Research Organisation (ISRO)** for **Smart India Hackathon 2026**.
-- Pretrained foundation model provided by **Depth Anything V2**.
-- Remote sensing paired dataset provided by **GAMUS (Earthflow)**.
+- [x] Problem statement scoping and architecture definition
+- [x] Initial project scaffolding and clean environment setup
+- [x] Interactive frontend landing page with drag-and-drop ingestion
+- [x] Dataset preparation and fine-tuning Depth Anything V2 on GAMUS notebook
+- [x] Metric calibration module integration (`calibration.py`)
+- [x] FastAPI endpoint `/process` linking ML pipeline with frontend
+- [x] Three.js heightmap mesh rendering and texture draping
+- [x] 16-bit GIS Heightmap & Wavefront 3D OBJ mesh exporters
+- [x] Real-time Telemetry HUD & dynamic height scaling slider
+- [x] First-person drone camera flythrough controls
