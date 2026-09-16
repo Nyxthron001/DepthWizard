@@ -1,0 +1,5 @@
+image_path,height_path,class_path,source_dataset,landscape_type,split
+train/rgb/DC_01_25_p0.png,train/height/DC_01_25_p0.npy,train/class/DC_01_25_p0.npy,GAMUS,urban,train
+train/rgb/DC_01_25_p1.png,train/height/DC_01_25_p1.npy,train/class/DC_01_25_p1.npy,GAMUS,urban,train
+train/rgb/DC_01_25_p2.png,train/height/DC_01_25_p2.npy,train/class/DC_01_25_p2.npy,GAMUS,urban,train
+train/rgb/DC_01_25_p3.png,train/height/DC_01_25_p3.npy,train/class/DC_01_25_p3.npy,GAMUS,urban,train

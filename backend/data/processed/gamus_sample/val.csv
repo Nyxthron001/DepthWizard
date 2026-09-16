@@ -1,0 +1,5 @@
+image_path,height_path,class_path,source_dataset,landscape_type,split
+val/rgb/DC_02_26_p0.png,val/height/DC_02_26_p0.npy,val/class/DC_02_26_p0.npy,GAMUS,urban,val
+val/rgb/DC_02_26_p1.png,val/height/DC_02_26_p1.npy,val/class/DC_02_26_p1.npy,GAMUS,urban,val
+val/rgb/DC_02_26_p2.png,val/height/DC_02_26_p2.npy,val/class/DC_02_26_p2.npy,GAMUS,urban,val
+val/rgb/DC_02_26_p3.png,val/height/DC_02_26_p3.npy,val/class/DC_02_26_p3.npy,GAMUS,urban,val

@@ -1,0 +1,288 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera, Center } from '@react-three/drei';
+import * as THREE from 'three';
+import './DepthWizardViewer.css';
+
+const Terrain = ({ depthMapUrl, textureUrl, displacementScale = 3, onHover }) => {
+  const meshRef = useRef();
+
+  useEffect(() => {
+    if (!depthMapUrl || !textureUrl) return;
+
+    const loader = new THREE.TextureLoader();
+    let loadedTexture = null;
+    let loadedDepth = null;
+
+    const checkAndUpdate = () => {
+      const mesh = meshRef.current;
+      if (!mesh || !loadedTexture || !loadedDepth) return;
+      const mat = mesh.material;
+      loadedTexture.colorSpace = THREE.SRGBColorSpace;
+      mat.map = loadedTexture;
+      mat.displacementMap = loadedDepth;
+      mat.displacementScale = displacementScale;
+      mat.displacementBias = -displacementScale / 2; // center mesh around origin
+      mat.needsUpdate = true;
+    };
+
+    loader.load(textureUrl, (tex) => {
+      loadedTexture = tex;
+      checkAndUpdate();
+    });
+    loader.load(depthMapUrl, (depth) => {
+      loadedDepth = depth;
+      checkAndUpdate();
+    });
+  }, [depthMapUrl, textureUrl, displacementScale]);
+
+  return (
+    <mesh
+      ref={meshRef}
+      rotation={[-Math.PI / 2, 0, 0]}
+      onPointerMove={(e) => onHover && onHover(e)}
+    >
+      <planeGeometry args={[12, 12, 512, 512]} />
+      <meshStandardMaterial
+        color="white"
+        roughness={0.6}
+        metalness={0.1}
+        wireframe={false}
+      />
+    </mesh>
+  );
+};
+
+const DepthWizardViewer = () => {
+  const [file, setFile] = useState(null);
+  const [result, setResult] = useState(null);
+  const [status, setStatus] = useState('idle'); // idle | processing | ready | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const [displacementScale, setDisplacementScale] = useState(3);
+  const [hoverInfo, setHoverInfo] = useState({ x: 0, y: 0, z: 0 });
+  const fileInputRef = useRef();
+  const controlsRef = useRef();
+
+  const onFileChange = (e) => {
+    const next = e.target.files?.[0] ?? null;
+    setFile(next);
+    setResult(null);
+    setErrorMsg('');
+    setStatus('idle');
+    if (e.target) e.target.value = ''; // allow re-selecting the same file
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setStatus('processing');
+    setErrorMsg('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/process', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `Server said: ${response.status}`);
+      }
+      setResult({
+        depthUrl: `http://localhost:8000${data.result_url}`,
+        textureUrl: `http://localhost:8000${data.original_url}`,
+        exportPng16Url: data.export_png16_url ? `http://localhost:8000${data.export_png16_url}` : null,
+        exportObjUrl: data.export_obj_url ? `http://localhost:8000${data.export_obj_url}` : null,
+      });
+      setStatus('ready');
+    } catch (err) {
+      console.error('Error processing image:', err);
+      setErrorMsg(err.message || 'Something went wrong while processing your image.');
+      setStatus('error');
+    }
+  };
+
+  const resetCamera = () => controlsRef.current?.reset();
+
+  const handleTerrainHover = (event) => {
+    const { x, y, z } = event.point;
+    setHoverInfo({ x, y, z });
+  };
+
+  const busy = status === 'processing';
+
+  return (
+    <div className="dw-app">
+      {/* ---- Top bar ---- */}
+      <header className="dw-topbar">
+        <div className="dw-brand">
+          <div className="dw-mark">🛰️</div>
+          <div>
+            <h1 className="dw-title">DepthWizard</h1>
+            <div className="dw-tagline">ISRO · SIH 2026 · A single image becomes 3D terrain</div>
+          </div>
+        </div>
+
+        <div className="dw-controls">
+          <button className="dw-btn" onClick={() => fileInputRef.current?.click()}>
+            <span>📁</span> {file ? 'Change image' : 'Choose image'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={onFileChange}
+          />
+
+          {file && !busy && (
+            <span className="dw-file-chip">
+              <span className="dw-file-name">🖼️ {file.name}</span>
+              <button
+                className="dw-file-clear"
+                title="Remove image"
+                onClick={() => {
+                  setFile(null);
+                  setResult(null);
+                  setErrorMsg('');
+                  setStatus('idle');
+                }}
+              >
+                ✕
+              </button>
+            </span>
+          )}
+
+          <button
+            className="dw-btn dw-btn-generate"
+            onClick={handleUpload}
+            disabled={!file || busy}
+          >
+            {busy ? (
+              <>
+                <span className="dw-spinner" /> Reading height…
+              </>
+            ) : (
+              <>✨ Generate 3D Terrain</>
+            )}
+          </button>
+        </div>
+
+        <div className="dw-controls dw-controls-right">
+          <div className="dw-scale">
+            <span>Height scale</span>
+            <input
+              type="range"
+              min="0.5"
+              max="10"
+              step="0.5"
+              value={displacementScale}
+              onChange={(e) => setDisplacementScale(parseFloat(e.target.value))}
+            />
+            <span className="dw-scale-value">{displacementScale}x</span>
+          </div>
+
+          {result?.exportPng16Url && result?.exportObjUrl && (
+            <>
+              <a className="dw-export-pill" href={result.exportPng16Url} download>
+                💾 16-bit heightmap
+              </a>
+              <a className="dw-export-pill" href={result.exportObjUrl} download>
+                🧊 3D mesh (.OBJ)
+              </a>
+            </>
+          )}
+
+          <button className="dw-btn dw-btn-ghost" onClick={resetCamera}>
+            ⟲ Reset view
+          </button>
+        </div>
+      </header>
+
+      {/* ---- Scene ---- */}
+      <div className="dw-scene">
+        <Canvas shadows gl={{ alpha: true, antialias: true }}>
+          <PerspectiveCamera makeDefault position={[0, 12, 12]} />
+          <OrbitControls ref={controlsRef} makeDefault />
+
+          <ambientLight intensity={0.65} />
+          <directionalLight position={[10, 20, 10]} intensity={1.6} castShadow />
+          <pointLight position={[-10, 10, -10]} intensity={0.5} color="#4466ff" />
+
+          <Center>
+            <Terrain
+              depthMapUrl={result?.depthUrl}
+              textureUrl={result?.textureUrl}
+              displacementScale={displacementScale}
+              onHover={handleTerrainHover}
+            />
+          </Center>
+
+          <gridHelper args={[20, 20]} material={new THREE.LineBasicMaterial({ color: '#24334d' })} />
+          <fog attach="fog" args={['#070b13', 10, 50]} />
+        </Canvas>
+
+        {/* Guided empty state */}
+        {status === 'idle' && (
+          <div className="dw-empty">
+            <div className="dw-empty-card">
+              <div className="dw-empty-orb">🛰️</div>
+              <h2>Your image, turned into terrain</h2>
+              <p>
+                DepthWizard estimates surface height from a single optical satellite
+                image, then lets you fly over it in 3D.
+              </p>
+              <div className="dw-steps">
+                <div className="dw-step">
+                  <span className="dw-step-num">STEP 1</span>
+                  <span className="dw-step-name">Choose an image</span>
+                </div>
+                <div className="dw-step">
+                  <span className="dw-step-num">STEP 2</span>
+                  <span className="dw-step-name">We estimate height</span>
+                </div>
+                <div className="dw-step">
+                  <span className="dw-step-num">STEP 3</span>
+                  <span className="dw-step-name">Fly through in 3D</span>
+                </div>
+              </div>
+              <div className="dw-empty-hint">Choose an image above to get started ✨</div>
+            </div>
+          </div>
+        )}
+
+        {/* Status pill */}
+        {busy && (
+          <div className="dw-status">
+            <span className="dw-spinner" /> Estimating heights &amp; building your terrain…
+          </div>
+        )}
+        {status === 'error' && (
+          <div className="dw-status dw-status-error">⚠️ {errorMsg}</div>
+        )}
+
+        {/* Telemetry HUD */}
+        {status === 'ready' && (
+          <div className="dw-hud">
+            <div className="dw-hud-title">🛰️ TERRAIN TELEMETRY</div>
+            <div className="dw-hud-row">
+              <span>X-COORD</span> <span className="dw-hud-val">{hoverInfo.x.toFixed(2)}</span>
+            </div>
+            <div className="dw-hud-row">
+              <span>Y-COORD</span> <span className="dw-hud-val">{hoverInfo.y.toFixed(2)}</span>
+            </div>
+            <div className="dw-hud-row">
+              <span>ELEV (REL)</span> <span className="dw-hud-val">{hoverInfo.z.toFixed(4)}</span>
+            </div>
+            <div className="dw-hud-note">Relative depth — uncalibrated, not metres</div>
+          </div>
+        )}
+
+        <div className="dw-hint">Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+      </div>
+    </div>
+  );
+};
+
+export default DepthWizardViewer;

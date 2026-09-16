@@ -1,0 +1,12 @@
+# DepthWizard Python Dependencies
+torch>=2.0.0
+torchvision
+transformers
+timm
+huggingface_hub
+accelerate
+opencv-python-headless
+h5py
+numpy
+scikit-learn
+Pillow

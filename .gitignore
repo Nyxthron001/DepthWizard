@@ -1,0 +1,40 @@
+# Python & PyTorch
+__pycache__/
+*.py[cod]
+*$py.class
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# Data & Uploads
+backend/data/raw/uploads/*
+!backend/data/raw/uploads/.gitkeep
+backend/data/processed/results/*
+!backend/data/processed/results/.gitkeep
+backend/data/dem_cache/*
+data/raw/*
+data/processed/*
+data/outputs/*
+data/dem_cache/*
+gamus_data/
+
+# Frontend / Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+
+# Environments & OS
+.env
+.env.local
+.venv
+venv/
+ENV/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Graphify intermediate output
+graphify-out/
+

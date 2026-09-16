@@ -1,0 +1,5 @@
+image_path,height_path,class_path,source_dataset,landscape_type,split
+test/rgb/DC_03_26_p0.png,test/height/DC_03_26_p0.npy,test/class/DC_03_26_p0.npy,GAMUS,urban,test
+test/rgb/DC_03_26_p1.png,test/height/DC_03_26_p1.npy,test/class/DC_03_26_p1.npy,GAMUS,urban,test
+test/rgb/DC_03_26_p2.png,test/height/DC_03_26_p2.npy,test/class/DC_03_26_p2.npy,GAMUS,urban,test
+test/rgb/DC_03_26_p3.png,test/height/DC_03_26_p3.npy,test/class/DC_03_26_p3.npy,GAMUS,urban,test
