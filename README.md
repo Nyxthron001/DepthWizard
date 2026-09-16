@@ -206,9 +206,9 @@ Open `http://localhost:5173` in your browser to view the application.
 - [x] Initial project scaffolding and clean environment setup
 - [x] Interactive frontend landing page with drag-and-drop ingestion
 - [x] Dataset preparation and fine-tuning Depth Anything V2 on GAMUS notebook
-- [x] Metric calibration module integration (`calibration.py`)
-- [x] FastAPI endpoint `/process` linking ML pipeline with frontend
-- [x] Three.js heightmap mesh rendering and texture draping
-- [x] 16-bit GIS Heightmap & Wavefront 3D OBJ mesh exporters
-- [x] Real-time Telemetry HUD & dynamic height scaling slider
-- [x] First-person drone camera flythrough controls
+- [ ] Metric calibration module integration (`calibration.py`)
+- [ ] FastAPI endpoint `/process` linking ML pipeline with frontend
+- [ ] Three.js heightmap mesh rendering and texture draping
+- [ ] 16-bit GIS Heightmap & Wavefront 3D OBJ mesh exporters
+- [ ] Real-time Telemetry HUD & dynamic height scaling slider
+- [ ] First-person drone camera flythrough controls
