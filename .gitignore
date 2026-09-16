@@ -35,6 +35,12 @@ ENV/
 Thumbs.db
 desktop.ini
 
+# Backup & Prompt Files
+*.backup
+*.bak
+*PROMPT*
+*prompt*
+
 # Graphify intermediate output
 graphify-out/
 
